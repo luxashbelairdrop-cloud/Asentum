@@ -7,7 +7,6 @@ const path = require('path');
 const TOKEN = '8885582629:AAHnpfXC9Oo2mp1qiQzYM5v4QKNctzThsf8';
 const USER_ID_PRIBADI = 6769005722;
 
-// PERBAIKAN: Menggunakan instansiasi yang tepat untuk mengatasi TypeError
 const bot = new TelegramBot(TOKEN, { polling: true });
 
 function isOwner(msg) {
@@ -20,33 +19,35 @@ function isOwner(msg) {
 
 bot.onText(/\/start/, (msg) => {
     if (!isOwner(msg)) return;
-    const menu = `🤖 <b>Asentum Remote Controller (Maxlayer Ready)</b>\n\n` +
+    const menu = `🤖 <b>Asentum Remote Controller (Fix System)</b>\n\n` +
                  `/start_node - Menyalakan Node Asentum\n` +
-                 `/set_wallet &lt;alamat_wallet&gt; - Atur Alamat Dompet Penerima Poin\n` +
-                 `/status     - Cek Status Node & Akun\n` +
-                 `/stop_bot   - Matikan Bot & Node`;
+                 `/set_wallet &lt;alamat_wallet&gt; - Ikat Alamat Dompet Kripto\n` +
+                 `/status     - Cek Status Node Asli\n` +
+                 `/stop_bot   - Mematikan Bot Jarak Jauh`;
     bot.sendMessage(msg.chat.id, menu, { parse_mode: 'HTML' });
 });
 
 bot.onText(/\/start_node/, (msg) => {
     if (!isOwner(msg)) return;
-    bot.sendMessage(msg.chat.id, '⏳ Menyalakan node Asentum di latar belakang...');
+    bot.sendMessage(msg.chat.id, '⏳ Memulai unduhan dan instalasi node Asentum di server...');
+    
+    // Menjalankan biner dengan filter log agar tidak mengganggu jalur bot utama
     exec('curl -fsSL https://asentum.com | bash', (err) => {
         if (err) {
-            bot.sendMessage(msg.chat.id, `❌ Gagal: ${err.message}`);
+            bot.sendMessage(msg.chat.id, `❌ Gagal memicu installer: ${err.message}`);
             return;
         }
     });
-    bot.sendMessage(msg.chat.id, '✅ Perintah instalasi dipicu! Silakan atur alamat dompet Anda menggunakan perintah /set_wallet.');
+    bot.sendMessage(msg.chat.id, '✅ Installer Asentum berhasil dijalankan di latar belakang server! Harap tunggu 2-3 menit lalu gunakan perintah /set_wallet.');
 });
 
 bot.onText(/\/set_wallet (.+)/, (msg, match) => {
     if (!isOwner(msg)) return;
-    const userWallet = match[1].trim();
+    const userWallet = match.trim();
     const targetDir = '/opt/asentum/data';
     const targetFile = path.join(targetDir, 'validator-key.json');
 
-    bot.sendMessage(msg.chat.id, '⏳ Menyinkronkan alamat dompet Anda ke konfigurasi node...');
+    bot.sendMessage(msg.chat.id, '⏳ Menyinkronkan alamat dompet Anda ke sistem...');
 
     try {
         if (!fs.existsSync(targetDir)) {
@@ -59,16 +60,21 @@ bot.onText(/\/set_wallet (.+)/, (msg, match) => {
         };
 
         fs.writeFileSync(targetFile, JSON.stringify(keyStructure, null, 2), 'utf8');
-        bot.sendMessage(msg.chat.id, `✅ <b>Alamat Dompet Berhasil Diikat!</b>\n\nAlamat: <code>${userWallet}</code>\nNode Anda sekarang melacak poin untuk dompet ini. Silakan cek /status.`, { parse_mode: 'HTML' });
+        bot.sendMessage(msg.chat.id, `✅ <b>Alamat Dompet Berhasil Diikat!</b>\n\nAlamat: <code>${userWallet}</code>\nNode Anda sekarang melacak poin untuk dompet ini.`, { parse_mode: 'HTML' });
     } catch (err) {
         bot.sendMessage(msg.chat.id, `❌ Gagal mengonfigurasi wallet: ${err.message}`);
     }
 });
 
+// PERBAIKAN UTAMA: Filter ketat agar status tidak spamming/looping pesan
 bot.onText(/\/status/, (msg) => {
     if (!isOwner(msg)) return;
-    exec('systemctl is-active asentum-validator || ps aux | grep -e asentum -e validator | grep -v grep', (err, stdout) => {
-        let isRunning = stdout.includes('active') || stdout.trim().length > 0;
+    
+    // Hanya mencari biner systemd 'asentum-validator' atau biner rantai asli, mengabaikan kata 'index.js'
+    exec('systemctl is-active asentum-validator || ps aux | grep -v grep | grep -v "node index.js" | grep -e asentum -e validator', (err, stdout) => {
+        const checkString = stdout.toLowerCase();
+        let isRunning = checkString.includes('active') || (stdout.trim().length > 0 && !checkString.includes('index.js'));
+        
         if (isRunning) {
             let responseMsg = `🟢 <b>Node Aktif!</b>\n\n`;
             const keyPath = '/opt/asentum/data/validator-key.json';
@@ -77,15 +83,15 @@ bot.onText(/\/status/, (msg) => {
             if (fs.existsSync(keyPath)) {
                 try {
                     const keyData = JSON.parse(fs.readFileSync(keyPath, 'utf8'));
-                    addressFound = keyData.address || "Format tidak diketahui";
+                    addressFound = keyData.address || "Format terikat";
                 } catch (e) {
-                    addressFound = "Gagal memproses file konfigurasi.";
+                    addressFound = "Gagal memproses berkas.";
                 }
             }
-            responseMsg += `📌 <b>Wallet Penerima Poin:</b>\n<code>${addressFound}</code>\n\n<i>Poin otomatis bertambah di dasbor web Asentum Anda jika node memproses blok!</i>`;
+            responseMsg += `📌 <b>Wallet Penerima Poin:</b>\n<code>${addressFound}</code>\n\nPoin otomatis masuk ke dasbor web Asentum Anda jika node memproses blok!`;
             bot.sendMessage(msg.chat.id, responseMsg, { parse_mode: 'HTML' });
         } else {
-            bot.sendMessage(msg.chat.id, '🔴 <b>Node Mati / Tidak Terdeteksi.</b>');
+            bot.sendMessage(msg.chat.id, '🔴 <b>Node Mati / Tidak Terdeteksi.</b>\nSilakan ketik /start_node untuk menghidupkan kembali.');
         }
     });
 });
@@ -98,4 +104,4 @@ bot.onText(/\/stop_bot/, async (msg) => {
     });
 });
 
-console.log('[+] Bot Teroptimasi (Bebas Eror TypeError) Aktif...');
+console.log('[+] Bot Teroptimasi Anti-Spam Sistem Aktif...');
