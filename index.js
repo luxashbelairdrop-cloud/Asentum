@@ -1,5 +1,7 @@
-const {TelegramBot} = require('node-telegram-bot-api');
+const TelegramBot} = require('node-telegram-bot-api');
 const { exec } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 
 // KONFIGURASI UTAMA
 const TOKEN = '8885582629:AAHnpfXC9Oo2mp1qiQzYM5v4QKNctzThsf8';
@@ -17,33 +19,62 @@ function isOwner(msg) {
 
 bot.onText(/\/start/, (msg) => {
     if (!isOwner(msg)) return;
-    const menu = `🤖 <b>Asentum Termux Controller Ready</b>\n\n` +
-                 `/start_node - Jalankan Node yang Sudah Ada\n` +
-                 `/status     - Cek Status Node\n` +
+    const menu = `🤖 <b>Asentum Remote Controller Ready</b>\n\n` +
+                 `/start_node - Menyalakan Node Asentum\n` +
+                 `/status     - Cek Status & Copy Node Address\n` +
                  `/stop_bot   - Matikan Bot & Node`;
     bot.sendMessage(msg.chat.id, menu, { parse_mode: 'HTML' });
 });
 
-// MEMICU BINER ASENTUM YANG SUDAH TERINSTAL
 bot.onText(/\/start_node/, (msg) => {
     if (!isOwner(msg)) return;
-    bot.sendMessage(msg.chat.id, '⏳ Menyalakan biner node Asentum di latar belakang...');
+    bot.sendMessage(msg.chat.id, '⏳ Menyalakan node Asentum di latar belakang...');
     
-    // Perintah langsung menjalankan aplikasi asentum yang sudah ada tanpa install ulang
-    exec('asentum-node start --validator > node.log 2>&1 &', (err) => {
+    exec('curl -fsSL https://asentum.com | bash', (err) => {
         if (err) {
             bot.sendMessage(msg.chat.id, `❌ Gagal: ${err.message}`);
             return;
         }
     });
-    bot.sendMessage(msg.chat.id, '✅ Node dijalankan! Silakan cek /status beberapa saat lagi.');
+    bot.sendMessage(msg.chat.id, '✅ Node dijalankan! Tunggu 1-2 menit lalu ketik /status untuk menyalin Node Address Anda.');
 });
 
+// FITUR BARU: OTOMATIS MENAMPILKAN NODE ADDRESS JIKA AKTIF
 bot.onText(/\/status/, (msg) => {
     if (!isOwner(msg)) return;
+    
     exec('ps aux | grep -e asentum -e validator | grep -v grep', (err, stdout) => {
         if (stdout.trim()) {
-            bot.sendMessage(msg.chat.id, `🟢 <b>Node Aktif!</b>\n\n<code>${stdout}</code>`, { parse_mode: 'HTML' });
+            let responseMsg = `🟢 <b>Node Aktif!</b>\n\nDetail proses:\n<code>${stdout}</code>\n\n`;
+            
+            // Mencari file data wallet Asentum (Biasanya disimpan di folder ~/.asentum/ atau direktori lokal node)
+            // Kita akan mencoba membaca file address.txt atau config bawaan Asentum
+            const searchPaths = [
+                path.join(process.env.HOME || '/root', '.asentum', 'node_address.txt'),
+                path.join(process.env.HOME || '/root', '.asentum', 'wallet.json'),
+                'node.log' // Cadangan jika address tertulis di log
+            ];
+            
+            let addressFound = "Belum terdeteksi. Pastikan Anda sudah menyelesaikan setup wallet via log kontainer.";
+            
+            for (let filePath of searchPaths) {
+                if (fs.existsSync(filePath)) {
+                    try {
+                        const fileData = fs.readFileSync(filePath, 'utf8');
+                        // Cari pola alamat dompet kripto Asentum (misal regex atau teks mentah jika file hanya berisi alamat)
+                        if (fileData.trim()) {
+                            addressFound = fileData.trim();
+                            break;
+                        }
+                    } catch (e) {
+                        // Gagal membaca satu file, lanjut ke file berikutnya
+                    }
+                }
+            }
+            
+            responseMsg += `📌 <b>Node Address Anda (Klik untuk Salin):</b>\n<code>${addressFound}</code>\n\n<i>Salin alamat di atas lalu tempel ke Asentum Airdrop Dashboard!</i>`;
+            bot.sendMessage(msg.chat.id, responseMsg, { parse_mode: 'HTML' });
+            
         } else {
             bot.sendMessage(msg.chat.id, '🔴 <b>Node Mati / Tidak Terdeteksi.</b>');
         }
@@ -58,4 +89,4 @@ bot.onText(/\/stop_bot/, async (msg) => {
     });
 });
 
-console.log('[+] Bot Telegram Teroptimasi Aktif...');
+console.log('[+] Bot Telegram Teroptimasi (Node Address Reader) Aktif...');
