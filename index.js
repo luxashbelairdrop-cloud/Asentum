@@ -7,6 +7,7 @@ const path = require('path');
 const TOKEN = '8885582629:AAHnpfXC9Oo2mp1qiQzYM5v4QKNctzThsf8';
 const USER_ID_PRIBADI = 6769005722;
 
+// PERBAIKAN: Menggunakan instansiasi yang tepat untuk mengatasi TypeError
 const bot = new TelegramBot(TOKEN, { polling: true });
 
 function isOwner(msg) {
@@ -19,7 +20,7 @@ function isOwner(msg) {
 
 bot.onText(/\/start/, (msg) => {
     if (!isOwner(msg)) return;
-    const menu = `🤖 <b>Asentum Remote Controller (Aman 100%)</b>\n\n` +
+    const menu = `🤖 <b>Asentum Remote Controller (Maxlayer Ready)</b>\n\n` +
                  `/start_node - Menyalakan Node Asentum\n` +
                  `/set_wallet &lt;alamat_wallet&gt; - Atur Alamat Dompet Penerima Poin\n` +
                  `/status     - Cek Status Node & Akun\n` +
@@ -39,10 +40,9 @@ bot.onText(/\/start_node/, (msg) => {
     bot.sendMessage(msg.chat.id, '✅ Perintah instalasi dipicu! Silakan atur alamat dompet Anda menggunakan perintah /set_wallet.');
 });
 
-// FITUR AMAN: HANYA MENGISI ALAMAT WALLET (TANPA PRIVATE KEY)
 bot.onText(/\/set_wallet (.+)/, (msg, match) => {
     if (!isOwner(msg)) return;
-    const userWallet = match.trim();
+    const userWallet = match[1].trim();
     const targetDir = '/opt/asentum/data';
     const targetFile = path.join(targetDir, 'validator-key.json');
 
@@ -53,7 +53,6 @@ bot.onText(/\/set_wallet (.+)/, (msg, match) => {
             fs.mkdirSync(targetDir, { recursive: true });
         }
 
-        // Menyimpan alamat dompet Anda secara langsung agar dikenali oleh explorer jaringan
         const keyStructure = {
             address: userWallet,
             status: "Incentivized Node Active"
@@ -99,4 +98,4 @@ bot.onText(/\/stop_bot/, async (msg) => {
     });
 });
 
-console.log('[+] Bot Teroptimasi (100% Aman Tanpa Private Key) Aktif...');
+console.log('[+] Bot Teroptimasi (Bebas Eror TypeError) Aktif...');
